@@ -194,13 +194,13 @@ while True:
             color = bbox_colors[classidx % 10]
             cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), color, 2)
 
-            # Draw center point
-            cv2.circle(frame, (cx, cy), 5, (0,0,255), -1)
-
-
             # Compute center
             cx = int((xmin + xmax) / 2)
             cy = int((ymin + ymax) / 2)
+
+            # Draw center point
+            cv2.circle(frame, (cx, cy), 5, (0,0,255), -1)
+
 
             label = f'{classname}: {int(conf*100)}%'
             labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1) # Get font size

@@ -1,0 +1,180 @@
+import os
+import sys
+import argparse
+import glob
+import time
+import socket
+
+import cv2
+import numpy as np
+from ultralytics import YOLO
+
+# =========================
+# UDP SOCKET SETUP
+# =========================
+UDP_IP = "127.0.0.1"   # Change if sending to another machine
+UDP_PORT = 5005
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+# =========================
+# ARGUMENT PARSING
+# =========================
+parser = argparse.ArgumentParser()
+parser.add_argument('--model', required=True)
+parser.add_argument('--source', required=True)
+parser.add_argument('--thresh', default=0.5)
+parser.add_argument('--resolution', default=None)
+parser.add_argument('--record', action='store_true')
+args = parser.parse_args()
+
+model_path = args.model
+img_source = args.source
+min_thresh = float(args.thresh)
+user_res = args.resolution
+record = args.record
+
+# =========================
+# LOAD MODEL
+# =========================
+if not os.path.exists(model_path):
+    print("ERROR: Model not found")
+    sys.exit(0)
+
+model = YOLO(model_path, task='detect')
+labels = model.names
+
+# =========================
+# SOURCE TYPE
+# =========================
+img_ext_list = ['.jpg','.jpeg','.png','.bmp']
+vid_ext_list = ['.avi','.mov','.mp4','.mkv','.wmv']
+
+if os.path.isdir(img_source):
+    source_type = 'folder'
+elif os.path.isfile(img_source):
+    _, ext = os.path.splitext(img_source)
+    source_type = 'image' if ext in img_ext_list else 'video'
+elif 'usb' in img_source:
+    source_type = 'usb'
+    usb_idx = int(img_source[3:])
+else:
+    print("Invalid source")
+    sys.exit(0)
+
+# =========================
+# RESOLUTION
+# =========================
+resize = False
+if user_res:
+    resize = True
+    resW, resH = map(int, user_res.split('x'))
+
+# =========================
+# VIDEO SOURCE
+# =========================
+if source_type == 'image':
+    imgs_list = [img_source]
+elif source_type == 'folder':
+    imgs_list = glob.glob(img_source + '/*')
+elif source_type in ['video', 'usb']:
+    cap = cv2.VideoCapture(img_source if source_type == 'video' else usb_idx)
+    if user_res:
+        cap.set(3, resW)
+        cap.set(4, resH)
+
+# =========================
+# MAIN LOOP
+# =========================
+frame_rate_buffer = []
+fps_avg_len = 200
+avg_frame_rate = 0
+img_count = 0
+
+while True:
+    t_start = time.perf_counter()
+
+    # Read frame
+    if source_type in ['image', 'folder']:
+        if img_count >= len(imgs_list):
+            break
+        frame = cv2.imread(imgs_list[img_count])
+        img_count += 1
+    else:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+    if resize:
+        frame = cv2.resize(frame, (resW, resH))
+
+    frame_h, frame_w = frame.shape[:2]
+    frame_cx, frame_cy = frame_w // 2, frame_h // 2
+
+    # Run YOLO
+    results = model(frame, verbose=False)
+    detections = results[0].boxes
+
+    closest_obj = None
+    min_distance = float('inf')
+
+    for det in detections:
+        conf = det.conf.item()
+        if conf < min_thresh:
+            continue
+
+        xmin, ymin, xmax, ymax = det.xyxy.cpu().numpy().squeeze().astype(int)
+        cx = (xmin + xmax) // 2
+        cy = (ymin + ymax) // 2
+
+        classidx = int(det.cls.item())
+        classname = labels[classidx]
+
+        # Distance from center
+        dist = np.sqrt((cx - frame_cx)**2 + (cy - frame_cy)**2)
+
+        if dist < min_distance:
+            min_distance = dist
+            closest_obj = (classname, cx, cy)
+
+        # Draw bbox and center
+        cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), (0,255,0), 2)
+        cv2.circle(frame, (cx, cy), 5, (0,0,255), -1)
+
+    # =========================
+    # SEND COORDINATES (UDP)
+    # =========================
+    if closest_obj:
+        classname, cx, cy = closest_obj
+        message = f"{classname},{cx},{cy}"
+        sock.sendto(message.encode(), (UDP_IP, UDP_PORT))
+
+        # Highlight selected object
+        cv2.circle(frame, (cx, cy), 8, (255,0,0), -1)
+        cv2.putText(frame, f"CENTER TARGET: {classname}",
+                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,0,0), 2)
+
+    # FPS
+    t_stop = time.perf_counter()
+    fps = 1 / (t_stop - t_start)
+    frame_rate_buffer.append(fps)
+    if len(frame_rate_buffer) > fps_avg_len:
+        frame_rate_buffer.pop(0)
+    avg_frame_rate = np.mean(frame_rate_buffer)
+
+    cv2.putText(frame, f"FPS: {avg_frame_rate:.2f}",
+                (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,255), 2)
+
+    cv2.imshow("YOLO UDP Output", frame)
+
+    if cv2.waitKey(5) & 0xFF in [ord('q'), ord('Q')]:
+        break
+
+# =========================
+# CLEANUP
+# =========================
+if source_type in ['video','usb']:
+    cap.release()
+
+cv2.destroyAllWindows()
+sock.close()

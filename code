@@ -176,8 +176,8 @@ while True:
     elif source_type == 'http':
         ret, frame = cap.read()
         if not ret or frame is None:
-        print("Failed to read frame from HTTP stream. Exiting...")
-        break
+            print("Failed to read frame from HTTP stream. Exiting...")
+            break
 
     # Resize frame to desired display resolution
     if resize == True:

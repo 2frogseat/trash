@@ -8,6 +8,21 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
+url = "http://192.168.4.32:81/stream"
+cap = cv2.VideoCapture(url)
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        print("Failed to grab frame")
+        break
+    cv2.imshow("test", frame)
+    if cv2.waitKey(1) == 27:
+        break
+
+cap.release()
+cv2.destroyAllWindows()
+
 # Define and parse user input arguments
 
 parser = argparse.ArgumentParser()

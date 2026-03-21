@@ -124,8 +124,8 @@ elif source_type == 'picamera':
 elif source_type == 'http':
     cap = cv2.VideoCapture(stream_url, cv2.CAP_FFMPEG)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    if not cap.isOpened():
-        print(f"Failed to open stream at {stream_url}. Check IP, port, and network.")
+# if not cap.isOpened():
+# print(f"Failed to open stream at {stream_url}. Check IP, port, and network.")
         sys.exit(0)
     if user_res:
         cap.set(3, resW)

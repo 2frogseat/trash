@@ -9,7 +9,6 @@ import numpy as np
 from ultralytics import YOLO
 
 
-
 # Define and parse user input arguments
 
 parser = argparse.ArgumentParser()

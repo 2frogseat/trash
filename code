@@ -174,8 +174,8 @@ while True:
             print('Unable to read frames from the Picamera. This indicates the camera is disconnected or not working. Exiting program.')
             break
     elif source_type == 'http':
-    ret, frame = cap.read()
-    if not ret or frame is None:
+      ret, frame = cap.read()
+      if not ret or frame is None:
         print("Failed to read frame from HTTP stream. Exiting...")
         break
 

@@ -117,6 +117,10 @@ elif source_type == 'picamera':
     cap.configure(cap.create_video_configuration(main={"format": 'RGB888', "size": (resW, resH)}))
     cap.start()
 
+
+
+
+
 # Set bounding box colors (using the Tableu 10 color scheme)
 bbox_colors = [(164,120,87), (68,148,228), (93,97,209), (178,182,133), (88,159,106), 
               (96,202,231), (159,124,168), (169,162,241), (98,118,150), (172,176,184)]

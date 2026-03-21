@@ -8,20 +8,40 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
-url = "http://192.168.4.32:81/stream"
-cap = cv2.VideoCapture(url)
+import cv2
+from yolov5 import YOLOv5  # adjust if using a different YOLO version
 
+# --- Step A: Initialize YOLO ---
+yolo = YOLOv5("my_model.pt", device="cpu")  # or "cuda" if you have GPU
+
+# --- Step B: Open the ESP32-CAM stream ---
+stream_url = "http://192.168.4.32:81/stream"  # use your actual IP
+cap = cv2.VideoCapture(stream_url)
+
+if not cap.isOpened():
+    print("Failed to connect to stream. Check IP and WiFi.")
+    exit()
+
+# --- Step C: Read frames and run detection ---
 while True:
     ret, frame = cap.read()
     if not ret:
-        print("Failed to grab frame")
+        print("Failed to grab frame. Stream might have stopped.")
         break
-    cv2.imshow("test", frame)
+
+    # Run YOLO detection on the frame
+    results = yolo.predict(frame)
+
+    # Draw the results on the frame
+    annotated_frame = results.render()[0]
+
+    # Display frame
+    cv2.imshow("ESP32 YOLO Stream", annotated_frame)
+
+    # Press ESC to quit
     if cv2.waitKey(1) == 27:
         break
 
-cap.release()
-cv2.destroyAllWindows()
 
 # Define and parse user input arguments
 

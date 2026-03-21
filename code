@@ -269,7 +269,7 @@ while True:
     if source_type == 'image' or source_type == 'folder':
         key = cv2.waitKey()
     elif source_type == 'video' or source_type == 'usb' or source_type == 'picamera':
-    pass
+        pass
 
     key = cv2.waitKey(5)
     

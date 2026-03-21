@@ -8,6 +8,10 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
+import torch
+
+yolo = torch.load("my_model.pt", map_location="cpu", weights_only=False)
+
 import cv2
 from yolov5 import YOLOv5  # adjust if using a different YOLO version
 

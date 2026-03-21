@@ -67,8 +67,12 @@ elif 'picamera' in img_source:
     source_type = 'picamera'
     picam_idx = int(img_source[8:])
 else:
-    print(f'Input {img_source} is invalid. Please try again.')
-    sys.exit(0)
+    if img_source.startswith("http://") or img_source.startswith("https://"):
+        source_type = 'http'
+        stream_url = img_source
+    else:
+        print(f'Input {img_source} is invalid. Please try again.')
+        sys.exit(0)
 
 # Parse user-specified display resolution
 resize = False
@@ -117,7 +121,14 @@ elif source_type == 'picamera':
     cap.configure(cap.create_video_configuration(main={"format": 'RGB888', "size": (resW, resH)}))
     cap.start()
 
-
+elif source_type == 'http':
+    cap = cv2.VideoCapture(stream_url)
+    if not cap.isOpened():
+        print(f"Failed to open stream at {stream_url}. Check IP, port, and network.")
+        sys.exit(0)
+    if user_res:
+        cap.set(3, resW)
+        cap.set(4, resH)
 
 
 
@@ -162,6 +173,11 @@ while True:
         if (frame is None):
             print('Unable to read frames from the Picamera. This indicates the camera is disconnected or not working. Exiting program.')
             break
+    elif source_type == 'http':
+    ret, frame = cap.read()
+    if not ret or frame is None:
+        print("Failed to read frame from HTTP stream. Exiting...")
+        break
 
     # Resize frame to desired display resolution
     if resize == True:

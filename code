@@ -3,6 +3,7 @@ import sys
 import argparse
 import glob
 import time
+import requests
 
 import cv2
 import numpy as np
@@ -174,11 +175,30 @@ while True:
             print('Unable to read frames from the Picamera. This indicates the camera is disconnected or not working. Exiting program.')
             break
     elif source_type == 'http':
-        ret, frame = cap.read()
-        if not ret or frame is None:
-            print("Failed to read frame from HTTP stream. Exiting...")
-            break
+        try:
+            stream = requests.get(stream_url, stream=True, timeout=5)
+            bytes_data = bytes()
 
+            for chunk in stream.iter_content(chunk_size=1024):
+                bytes_data += chunk
+                a = bytes_data.find(b'\xff\xd8')
+                b = bytes_data.find(b'\xff\xd9')
+
+                if a != -1 and b != -1:
+                    jpg = bytes_data[a:b+2]
+                    bytes_data = bytes_data[b+2:]
+
+                    frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                    break
+
+            if frame is None:
+                print("Failed to decode frame")
+                continue
+
+        except:
+            print("HTTP stream error")
+            continue
+    
     # Resize frame to desired display resolution
     if resize == True:
         frame = cv2.resize(frame,(resW,resH))

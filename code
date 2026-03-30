@@ -142,7 +142,7 @@ fps_avg_len = 200
 img_count = 0
 
 # --- ESP32 & TIMER SETUP ---
-ESP_IP = "http://192.168.4.58"
+ESP_IP = "http://192.168.4.43"
 current_state = None  
 last_seen_time = 0      
 last_seen_zone = None   

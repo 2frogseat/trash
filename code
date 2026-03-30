@@ -174,6 +174,31 @@ def send_command(target_state):
     except Exception as e:
         print(f"ESP Error: {e}")
 
+# State tracking to prevent crashing the ESP with too many requests
+current_state = None 
+ESP_IP = "http://192.168.4.58"
+
+def send_command(target_state):
+    global current_state
+    if target_state == current_state:
+        return 
+    try:
+        if target_state == "LEFT":
+            requests.get(f"{ESP_IP}/left_on", timeout=0.1)
+            requests.get(f"{ESP_IP}/right_off", timeout=0.1)
+        elif target_state == "RIGHT":
+            requests.get(f"{ESP_IP}/right_on", timeout=0.1)
+            requests.get(f"{ESP_IP}/left_off", timeout=0.1)
+        elif target_state == "STRAIGHT":
+            requests.get(f"{ESP_IP}/left_on", timeout=0.1)
+            requests.get(f"{ESP_IP}/right_on", timeout=0.1)
+        elif target_state == "STOP":
+            requests.get(f"{ESP_IP}/left_off", timeout=0.1)
+            requests.get(f"{ESP_IP}/right_off", timeout=0.1)
+        current_state = target_state
+    except:
+        pass # Ignore connection errors to keep the video moving
+
 # Begin inference loop
 while True:
 
@@ -242,110 +267,75 @@ while True:
 
     # Initialize variable for basic object counting example
     object_count = 0
+    cx = None  # Reset center for this specific frame
 
     # Go through each detection and get bbox coords, confidence, and class
     for i in range(len(detections)):
+        xyxy_tensor = detections[i].xyxy.cpu()
+        xyxy = xyxy_tensor.numpy().squeeze()
+        
+        # Ensure we have a valid array before unpacking
+        if xyxy.shape == (4,):
+            xmin, ymin, xmax, ymax = xyxy.astype(int)
+            conf = detections[i].conf.item()
+            classidx = int(detections[i].cls.item())
+            classname = labels[classidx]
 
-        # Get bounding box coordinates
-        # Ultralytics returns results in Tensor format, which have to be converted to a regular Python array
-        xyxy_tensor = detections[i].xyxy.cpu() # Detections in Tensor format in CPU memory
-        xyxy = xyxy_tensor.numpy().squeeze() # Convert tensors to Numpy array
-        xmin, ymin, xmax, ymax = xyxy.astype(int) # Extract individual coordinates and convert to int
+            if conf > min_thresh:
+                color = bbox_colors[classidx % 10]
+                cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), color, 2)
 
-        # Get bounding box class ID and name
-        classidx = int(detections[i].cls.item())
-        classname = labels[classidx]
+                # Update cx for the current detected object
+                cx = int((xmin + xmax) / 2)
+                cy = int((ymin + ymax) / 2)
 
-        # Get bounding box confidence
-        conf = detections[i].conf.item()
+                cv2.circle(frame, (cx, cy), 5, (0,0,255), -1)
+                cv2.putText(frame, f'Center: {(cx,cy)}', (10,60), cv2.FONT_HERSHEY_SIMPLEX, .7, (0,255,255), 2)
 
+                label = f'{classname}: {int(conf*100)}%'
+                cv2.putText(frame, label, (xmin, ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
+                object_count = object_count + 1
 
-        # Draw box if confidence threshold is high enough
-        if conf > min_thresh:
-
-            color = bbox_colors[classidx % 10]
-            cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), color, 2)
-
-            # Compute center
-            cx = int((xmin + xmax) / 2)
-            cy = int((ymin + ymax) / 2)
-
-            # Draw center point
-            cv2.circle(frame, (cx, cy), 5, (0,0,255), -1)
-
-            #Add center coodanates
-            cv2.putText(frame, f'Center: {(cx,cy)}', (10,60), cv2.FONT_HERSHEY_SIMPLEX, .7, (0,255,255), 2)
-
-
-            label = f'{classname}: {int(conf*100)}%'
-            labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1) # Get font size
-            label_ymin = max(ymin, labelSize[1] + 10) # Make sure not to draw label too close to top of window
-            cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), color, cv2.FILLED) # Draw white box to put label text in
-            cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1) # Draw label text
-
-            # Basic example: count the number of objects in the image
-            object_count = object_count + 1
-
-
-
-    # Calculate and draw framerate (if using video, USB, or Picamera source)
-    if source_type == 'video' or source_type == 'usb' or source_type == 'picamera':
-        cv2.putText(frame, f'FPS: {avg_frame_rate:0.2f}', (10,20), cv2.FONT_HERSHEY_SIMPLEX, .7, (0,255,255), 2) # Draw framerate
-    
-    # Display detection results
-    cv2.putText(frame, f'Number of objects: {object_count}', (10,40), cv2.FONT_HERSHEY_SIMPLEX, .7, (0,255,255), 2) # Draw total number of detected objects
-    cv2.imshow('YOLO detection results',frame) # Display image
-    if record: recorder.write(frame)
-
-    # If inferencing on individual images, wait for user keypress before moving to next image. Otherwise, wait 5ms before moving to next frame.
-    if source_type == 'image' or source_type == 'folder':
-        key = cv2.waitKey()
-    elif source_type == 'video' or source_type == 'usb' or source_type == 'picamera':
-        pass
-
-    key = cv2.waitKey(5)
-    
-    if key == ord('q') or key == ord('Q'): # Press 'q' to quit
-        break
-    elif key == ord('s') or key == ord('S'): # Press 's' to pause inference
-        cv2.waitKey()
-    elif key == ord('p') or key == ord('P'): # Press 'p' to save a picture
-        cv2.imwrite('capture.png', frame)
-    
-    # Calculate FPS for this frame
-    t_stop = time.perf_counter()
-    frame_rate_calc = float(1/(t_stop - t_start))
-
-    # Append FPS result to frame_rate_buffer (for finding average FPS over multiple frames)
-    if len(frame_rate_buffer) >= fps_avg_len:
-        temp = frame_rate_buffer.pop(0)
-        frame_rate_buffer.append(frame_rate_calc)
-    else:
-        frame_rate_buffer.append(frame_rate_calc)
-
-    # Calculate average FPS for past frames
-    avg_frame_rate = np.mean(frame_rate_buffer)
-# ... after detection loop ...
-    
-    if object_count > 0:
-        # Based on 320px width:
+    # --- MOVEMENT LOGIC (NOW INSIDE THE LOOP) ---
+    if object_count > 0 and cx is not None:
         if cx < 106:
-            # Object is on the left, power RIGHT to steer toward it
-            send_command("RIGHT") 
+            send_command("RIGHT") # Object on left -> Power Right
         elif cx > 213:
-            # Object is on the right, power LEFT to steer toward it
-            send_command("LEFT")
+            send_command("LEFT")  # Object on right -> Power Left
         else:
-            # Object is in the middle 1/3rd
             send_command("STRAIGHT")
     else:
-        # No objects seen
         send_command("STOP")
+    # --------------------------------------------
+
+    # Calculate and draw framerate
+    if source_type in ['video', 'usb', 'picamera', 'http']:
+        cv2.putText(frame, f'FPS: {avg_frame_rate:0.2f}', (10,20), cv2.FONT_HERSHEY_SIMPLEX, .7, (0,255,255), 2)
+    
+    cv2.putText(frame, f'Number of objects: {object_count}', (10,40), cv2.FONT_HERSHEY_SIMPLEX, .7, (0,255,255), 2)
+    cv2.imshow('YOLO detection results', frame)
+    
+    if record: recorder.write(frame)
+
+    key = cv2.waitKey(5)
+    if key == ord('q') or key == ord('Q'):
+        break
+    elif key == ord('s') or key == ord('S'):
+        cv2.waitKey()
+    
+    # Calculate FPS
+    t_stop = time.perf_counter()
+    frame_rate_calc = float(1/(t_stop - t_start))
+    frame_rate_buffer.append(frame_rate_calc)
+    if len(frame_rate_buffer) > fps_avg_len:
+        frame_rate_buffer.pop(0)
+    avg_frame_rate = np.mean(frame_rate_buffer)
 
 # Clean up
 print(f'Average pipeline FPS: {avg_frame_rate:.2f}')
-if source_type == 'video' or source_type == 'usb':
+send_command("STOP") # Ensure robot stops when program ends
+if source_type in ['video', 'usb', 'http']:
     cap.release()
 elif source_type == 'picamera':
     cap.stop()

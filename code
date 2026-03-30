@@ -141,6 +141,39 @@ frame_rate_buffer = []
 fps_avg_len = 200
 img_count = 0
 
+ESP_IP = "http://192.168.4.58"
+current_state = None  # Tracks: "LEFT", "RIGHT", "STRAIGHT", or "STOP"
+
+def send_command(target_state):
+    global current_state
+    if target_state == current_state:
+        return # Don't spam the ESP if state hasn't changed
+
+    try:
+        if target_state == "LEFT":
+            # Power Left side to turn Right (as per your request)
+            requests.get(f"{ESP_IP}/left_on", timeout=0.2)
+            requests.get(f"{ESP_IP}/right_off", timeout=0.2)
+        
+        elif target_state == "RIGHT":
+            # Power Right side to turn Left
+            requests.get(f"{ESP_IP}/right_on", timeout=0.2)
+            requests.get(f"{ESP_IP}/left_off", timeout=0.2)
+            
+        elif target_state == "STRAIGHT":
+            # Both on to go forward
+            requests.get(f"{ESP_IP}/left_on", timeout=0.2)
+            requests.get(f"{ESP_IP}/right_on", timeout=0.2)
+            
+        elif target_state == "STOP":
+            requests.get(f"{ESP_IP}/left_off", timeout=0.2)
+            requests.get(f"{ESP_IP}/right_off", timeout=0.2)
+            
+        current_state = target_state
+        print(f"Action: {target_state}")
+    except Exception as e:
+        print(f"ESP Error: {e}")
+
 # Begin inference loop
 while True:
 
@@ -293,7 +326,22 @@ while True:
 
     # Calculate average FPS for past frames
     avg_frame_rate = np.mean(frame_rate_buffer)
-
+# ... after detection loop ...
+    
+    if object_count > 0:
+        # Based on 320px width:
+        if cx < 106:
+            # Object is on the left, power RIGHT to steer toward it
+            send_command("RIGHT") 
+        elif cx > 213:
+            # Object is on the right, power LEFT to steer toward it
+            send_command("LEFT")
+        else:
+            # Object is in the middle 1/3rd
+            send_command("STRAIGHT")
+    else:
+        # No objects seen
+        send_command("STOP")
 
 # Clean up
 print(f'Average pipeline FPS: {avg_frame_rate:.2f}')

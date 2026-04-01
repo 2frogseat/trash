@@ -208,21 +208,34 @@ while True:
                 cx = int((xmin + xmax) / 2)
                 object_count += 1
 
-    # --- MOVEMENT LOGIC ---
+  # --- MOVEMENT LOGIC (VERTICAL ORIENTATION) ---
     current_time = time.time()
-    if object_count > 0 and cx is not None:
+    
+    # We use 'cy' (Center Y) instead of 'cx'
+    cy = None 
+    if object_count > 0:
+        # Calculate the center point of the last detected object's Y axis
+        cy = int((ymin + ymax) / 2)
         last_seen_time = current_time
-        if cx < 106:
-            last_seen_zone = "LEFT"
-            send_command("RIGHT")
-        elif cx > 213:
-            last_seen_zone = "RIGHT"
-            send_command("LEFT")
+
+        # Based on 240px height: Top < 80 | Middle 80-160 | Bottom > 160
+        if cy < 80:
+            last_seen_zone = "TOP"
+            # If object is at the top, turn ON both (Move Forward/Up)
+            send_command("STRAIGHT") 
+        elif cy > 160:
+            last_seen_zone = "BOTTOM"
+            # If object is at the bottom, turn OFF both (Stop/Look Down)
+            send_command("STOP")
         else:
             last_seen_zone = "CENTER"
-            send_command("STRAIGHT")
+            # Object is in the middle 80px band
+            send_command("STRAIGHT") 
+            
+        # Debugging visual: Draw a circle at the vertical center point
+        cv2.circle(frame, (160, cy), 5, (0, 255, 0), -1)
     else:
-        # 1.5s Coasting Logic
+        # 1.5s Coasting Logic for vertical center
         if last_seen_zone == "CENTER" and (current_time - last_seen_time) < 1.5:
             send_command("STRAIGHT")
             cv2.putText(frame, "COASTING (1.5s)", (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)

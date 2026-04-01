@@ -153,17 +153,17 @@ def send_command(target_state):
         return 
     try:
         if target_state == "LEFT":
-            requests.get(f"{ESP_IP}/left_on", timeout=0.1)
-            requests.get(f"{ESP_IP}/right_off", timeout=0.1)
+            requests.get(f"{ESP_IP}/left_on", timeout=0.5)
+            requests.get(f"{ESP_IP}/right_off", timeout=0.5)
         elif target_state == "RIGHT":
-            requests.get(f"{ESP_IP}/right_on", timeout=0.1)
-            requests.get(f"{ESP_IP}/left_off", timeout=0.1)
+            requests.get(f"{ESP_IP}/right_on", timeout=0.5)
+            requests.get(f"{ESP_IP}/left_off", timeout=0.5)
         elif target_state == "STRAIGHT":
-            requests.get(f"{ESP_IP}/left_on", timeout=0.1)
-            requests.get(f"{ESP_IP}/right_on", timeout=0.1)
+            requests.get(f"{ESP_IP}/left_on", timeout=0.5)
+            requests.get(f"{ESP_IP}/right_on", timeout=0.5)
         elif target_state == "STOP":
-            requests.get(f"{ESP_IP}/left_off", timeout=0.1)
-            requests.get(f"{ESP_IP}/right_off", timeout=0.1)
+            requests.get(f"{ESP_IP}/left_off", timeout=0.5)
+            requests.get(f"{ESP_IP}/right_off", timeout=0.5)
         current_state = target_state
         print(f"Action: {target_state}")
     except:
